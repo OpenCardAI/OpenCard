@@ -1,19 +1,12 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import type { ReactNode } from 'react';
-import { OpenCardContext } from './OpenCardContext';
-import { OpenCardClient } from '../core/OpenCardClient';
-import type { OpenCardConfig, Profile, Session, ModelCallOptions, ModelResponse } from '../types';
+import { OpenCardContext } from './OpenCardContext.jsx';
+import { OpenCardClient } from '../core/OpenCardClient.js';
 
-export interface OpenCardProviderProps {
-  children: ReactNode;
-  config?: OpenCardConfig;
-}
-
-export function OpenCardProvider({ children, config }: OpenCardProviderProps) {
+export function OpenCardProvider({ children, config }) {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [profile, setProfile] = useState<Profile | undefined>();
-  const [session, setSession] = useState<Session | undefined>();
+  const [profile, setProfile] = useState();
+  const [session, setSession] = useState();
 
   const client = useMemo(() => new OpenCardClient(config), [config]);
 
@@ -47,7 +40,7 @@ export function OpenCardProvider({ children, config }: OpenCardProviderProps) {
     }
   }, [client]);
 
-  const callModel = useCallback(async (options: ModelCallOptions): Promise<ModelResponse> => {
+  const callModel = useCallback(async (options) => {
     if (!connected) {
       throw new Error('Not connected to OpenCard');
     }

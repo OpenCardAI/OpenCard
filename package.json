@@ -4,14 +4,12 @@
   "description": "Universal AI wallet SDK with React components",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "type-check": "tsc --noEmit",
+    "build": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.mjs --external:react --external:react-dom && esbuild src/index.js --bundle --format=cjs --outfile=dist/index.js --external:react --external:react-dom",
+    "dev": "npm run build -- --watch",
     "clean": "rm -rf dist"
   },
   "repository": {
@@ -32,17 +30,13 @@
     "react-dom": ">=16.8.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.79",
-    "@types/react-dom": "^18.2.25",
+    "esbuild": "^0.20.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tsup": "^8.0.2",
-    "typescript": "^5.4.5"
+    "react-dom": "^18.2.0"
   },
   "dependencies": {},
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     }

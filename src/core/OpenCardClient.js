@@ -1,39 +1,35 @@
-import type { Session, Profile, ModelCallOptions, ModelResponse, OpenCardConfig } from '../types';
-
 export class OpenCardClient {
-  private config: Required<OpenCardConfig>;
-  private session: Session | null = null;
-
-  constructor(config: OpenCardConfig = {}) {
+  constructor(config = {}) {
+    this.session = null;
     this.config = {
       authUrl: config.authUrl || 'https://auth.opencard.ai',
       apiUrl: config.apiUrl || 'https://api.opencard.ai',
       clientId: config.clientId || '',
-      redirectUri: config.redirectUri || window.location.origin,
+      redirectUri: config.redirectUri || (typeof window !== 'undefined' ? window.location.origin : ''),
     };
   }
 
-  async connect(): Promise<Session> {
+  async connect() {
     // TODO: Implement OAuth flow
     throw new Error('Not implemented');
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect() {
     // TODO: Clear session and revoke tokens
     this.session = null;
   }
 
-  getSession(): Session | null {
+  getSession() {
     return this.session;
   }
 
-  async getProfile(): Promise<Profile | null> {
+  async getProfile() {
     // TODO: Fetch user profile from API
     if (!this.session) return null;
     throw new Error('Not implemented');
   }
 
-  async callModel(options: ModelCallOptions): Promise<ModelResponse> {
+  async callModel(options) {
     // TODO: Call AI model through OpenCard API
     if (!this.session) {
       throw new Error('Not connected');
@@ -41,7 +37,7 @@ export class OpenCardClient {
     throw new Error('Not implemented');
   }
 
-  isConnected(): boolean {
+  isConnected() {
     return !!this.session;
   }
 }

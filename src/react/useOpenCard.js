@@ -1,8 +1,7 @@
 import { useContext } from 'react';
-import { OpenCardContext } from './OpenCardContext';
-import type { OpenCardContextValue } from '../types';
+import { OpenCardContext } from './OpenCardContext.jsx';
 
-export function useOpenCard(): OpenCardContextValue {
+export function useOpenCard() {
   const context = useContext(OpenCardContext);
   
   if (!context) {

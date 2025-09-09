@@ -1,13 +1,4 @@
-import { useOpenCard } from './useOpenCard';
-
-export interface ConnectButtonProps {
-  className?: string;
-  connectLabel?: string;
-  disconnectLabel?: string;
-  connectingLabel?: string;
-  onConnect?: () => void;
-  onDisconnect?: () => void;
-}
+import { useOpenCard } from './useOpenCard.js';
 
 export function ConnectButton({
   className,
@@ -16,7 +7,7 @@ export function ConnectButton({
   connectingLabel = 'Connecting...',
   onConnect,
   onDisconnect,
-}: ConnectButtonProps) {
+}) {
   const { connected, connecting, connect, disconnect, profile } = useOpenCard();
 
   const handleClick = async () => {
