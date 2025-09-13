@@ -1,2 +1,2 @@
 // React components and hooks
-export { OpenCardProvider, ConnectButton, useOpenCard } from './react/index.js';
+export { OpenCardProvider, AuthButton, useOpenCard } from './react/index.js';

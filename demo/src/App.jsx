@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
-import { OpenCardProvider, ConnectButton, useOpenCard } from '@opencard/sdk';
+import { OpenCardProvider, AuthButton, useOpenCard } from '@opencard/sdk';
 
 function DemoContent() {
-  const { connected, connecting, profile, session, callModel } = useOpenCard();
+  const { client, isAuthenticated, isAuthenticating, user } = useOpenCard();
   const [modelResponse, setModelResponse] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleCallModel = async () => {
+    if (!client) {
+      setModelResponse('Error: OpenAI client not available. Make sure you have the openai package installed.');
+      return;
+    }
+
     try {
       setLoading(true);
       setModelResponse('');
-      const response = await callModel({
+      
+      // This is the standard OpenAI SDK call, but routed through OpenCard
+      const response = await client.chat.completions.create({
         model: 'gpt-4',
         messages: [
-          { role: 'user', content: 'Hello, this is a test!' }
+          { role: 'user', content: 'Hello, this is a test message from OpenCard SDK!' }
         ]
       });
+      
       setModelResponse(JSON.stringify(response, null, 2));
     } catch (error) {
       setModelResponse(`Error: ${error.message}`);
@@ -25,49 +33,49 @@ function DemoContent() {
   };
 
   return (
-    <div className="demo-content">
+    <div>
       <h1>OpenCard SDK Demo</h1>
       
-      <div className="card">
+      <div>
         <h2>Authentication</h2>
-        <ConnectButton className="connect-btn" />
+        <AuthButton />
         
-        <div className="status">
-          <p><strong>Status:</strong> {connecting ? 'Connecting...' : connected ? 'Connected' : 'Not connected'}</p>
+        <div>
+          <p><strong>Status:</strong> {isAuthenticating ? 'Signing in...' : isAuthenticated ? 'Authenticated' : 'Not signed in'}</p>
         </div>
       </div>
 
-      {connected && (
+      {isAuthenticated && (
         <>
-          <div className="card">
-            <h2>User Profile</h2>
-            <pre className="code-block">
-              {profile ? JSON.stringify(profile, null, 2) : 'No profile data'}
+          <div>
+            <h2>User Info</h2>
+            <pre>
+              {user ? JSON.stringify(user, null, 2) : 'No user data'}
             </pre>
           </div>
 
-          <div className="card">
-            <h2>Session Info</h2>
-            <pre className="code-block">
-              {session ? JSON.stringify(session, null, 2) : 'No session data'}
-            </pre>
+          <div>
+            <h2>OpenAI Client</h2>
+            <p>Client available: {client ? 'Yes' : 'No (install openai package)'}</p>
           </div>
 
-          <div className="card">
-            <h2>Test Model Call</h2>
-            <button 
-              onClick={handleCallModel}
-              disabled={loading}
-              className="action-btn"
-            >
-              {loading ? 'Calling Model...' : 'Call Test Model'}
-            </button>
-            {modelResponse && (
-              <pre className="code-block">
-                {modelResponse}
-              </pre>
-            )}
-          </div>
+          {client && (
+            <div>
+              <h2>Test OpenAI API Call</h2>
+              <p>This uses the standard OpenAI SDK, but authenticated through OpenCard:</p>
+              <button 
+                onClick={handleCallModel}
+                disabled={loading}
+              >
+                {loading ? 'Calling Model...' : 'Call client.chat.completions.create()'}
+              </button>
+              {modelResponse && (
+                <pre>
+                  {modelResponse}
+                </pre>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

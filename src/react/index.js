@@ -1,3 +1,3 @@
 export { OpenCardProvider } from './OpenCardProvider.jsx';
-export { ConnectButton } from './ConnectButton.jsx';
+export { AuthButton } from './AuthButton.jsx';
 export { useOpenCard } from './useOpenCard.js';

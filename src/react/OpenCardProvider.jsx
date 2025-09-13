@@ -1,75 +1,123 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { OpenCardContext } from './OpenCardContext.jsx';
 import { OpenCardClient } from '../core/OpenCardClient.js';
 
-export function OpenCardProvider({ children, config }) {
-  const [connected, setConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [profile, setProfile] = useState();
-  const [session, setSession] = useState();
+// Try to load OpenAI at module level
+let OpenAI = null;
+try {
+  OpenAI = require('openai');
+} catch (e) {
+  // OpenAI not installed - will handle this gracefully
+}
 
-  const client = useMemo(() => new OpenCardClient(config), [config]);
+export function OpenCardProvider({ children, config, openaiClient }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [user, setUser] = useState(null);
+  const [client, setClient] = useState(openaiClient || null);
 
-  const connect = useCallback(async () => {
+  const opencardClient = useMemo(() => new OpenCardClient(config), [config]);
+
+  const createOpenAIClient = useCallback(async () => {
+    // If user provided a client explicitly, use that
+    if (openaiClient) {
+      setClient(openaiClient);
+      return;
+    }
+
+    // If OpenAI is not available, show clear error
+    if (!OpenAI) {
+      throw new Error(
+        'The @opencard/sdk package requires \'openai\' as a peer dependency. ' +
+        'Please run `npm install openai` in your project, or pass an openaiClient prop to OpenCardProvider.'
+      );
+    }
+
+    // Create OpenAI client with OpenCard configuration
+    const newClient = await opencardClient.createOpenAIClient(OpenAI);
+    setClient(newClient);
+  }, [opencardClient, openaiClient]);
+
+  const signIn = useCallback(async () => {
     try {
-      setConnecting(true);
-      // TODO: Implement connection logic
-      const newSession = await client.connect();
-      setSession(newSession);
-      setConnected(true);
-      if (newSession.profile) {
-        setProfile(newSession.profile);
-      }
+      setIsAuthenticating(true);
+      // TODO: Implement authentication logic
+      const session = await opencardClient.authenticate();
+      
+      setIsAuthenticated(true);
+      setUser(opencardClient.getUser());
+      
+      // After successful authentication, create OpenAI client
+      await createOpenAIClient();
     } catch (error) {
-      console.error('Failed to connect:', error);
+      console.error('Failed to authenticate:', error);
       throw error;
     } finally {
-      setConnecting(false);
+      setIsAuthenticating(false);
     }
-  }, [client]);
+  }, [opencardClient, createOpenAIClient]);
 
-  const disconnect = useCallback(async () => {
+  const signOut = useCallback(async () => {
     try {
-      await client.disconnect();
-      setConnected(false);
-      setProfile(undefined);
-      setSession(undefined);
+      await opencardClient.signOut();
+      setIsAuthenticated(false);
+      setUser(null);
+      setClient(openaiClient || null); // Reset to provided client or null
     } catch (error) {
-      console.error('Failed to disconnect:', error);
+      console.error('Failed to sign out:', error);
       throw error;
     }
-  }, [client]);
-
-  const callModel = useCallback(async (options) => {
-    if (!connected) {
-      throw new Error('Not connected to OpenCard');
-    }
-    return client.callModel(options);
-  }, [client, connected]);
+  }, [opencardClient, openaiClient]);
 
   useEffect(() => {
-    // TODO: Check for existing session on mount
-    const existingSession = client.getSession();
-    if (existingSession) {
-      setSession(existingSession);
-      setConnected(true);
-      if (existingSession.profile) {
-        setProfile(existingSession.profile);
+    // Load session from storage and handle OAuth callback
+    const initializeAuth = async () => {
+      // First, load any existing session from storage
+      opencardClient.loadSessionFromStorage();
+      
+      // Then check if this is an OAuth callback
+      try {
+        const callbackResult = await opencardClient.handleRedirectCallback();
+        if (callbackResult) {
+          // We just completed authentication
+          setIsAuthenticated(true);
+          setUser(opencardClient.getUser());
+          
+          // Set up OpenAI client if available
+          if (openaiClient || OpenAI) {
+            await createOpenAIClient();
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('OAuth callback error:', error);
       }
-    }
-  }, [client]);
+      
+      // Check for existing session
+      const existingSession = opencardClient.getSession();
+      if (existingSession) {
+        setIsAuthenticated(true);
+        setUser(opencardClient.getUser());
+        // If user provided a client or we have OpenAI available, set it up
+        if (openaiClient || OpenAI) {
+          createOpenAIClient().catch(console.error);
+        }
+      }
+    };
+
+    initializeAuth();
+  }, [opencardClient, createOpenAIClient, openaiClient]);
 
   const value = useMemo(
     () => ({
-      connected,
-      connecting,
-      profile,
-      session,
-      connect,
-      disconnect,
-      callModel,
+      client,
+      isAuthenticated,
+      isAuthenticating,
+      user,
+      signIn,
+      signOut,
     }),
-    [connected, connecting, profile, session, connect, disconnect, callModel]
+    [client, isAuthenticated, isAuthenticating, user, signIn, signOut]
   );
 
   return <OpenCardContext.Provider value={value}>{children}</OpenCardContext.Provider>;
