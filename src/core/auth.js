@@ -35,26 +35,25 @@ export function buildAuthUrl(params) {
 }
 
 export async function exchangeCodeForTokens(params) {
-  const authorizationServer = {
-    issuer: params.authUrl,
-    token_endpoint: `${params.authUrl}/oauth/token`,
-  };
-
-  const client = {
+  // Make manual request to include required X-OC-Client header
+  const body = {
+    grant_type: 'authorization_code',
     client_id: params.clientId,
+    code: params.code,
+    redirect_uri: params.redirectUri,
+    code_verifier: params.codeVerifier,
   };
 
-  // Create URLSearchParams that oauth4webapi expects
-  const callbackParams = new URLSearchParams();
-  callbackParams.set('code', params.code);
-
-  const response = await oauth.authorizationCodeGrantRequest(
-    authorizationServer,
-    client,
-    callbackParams,
-    params.redirectUri,
-    params.codeVerifier
-  );
+  const response = await fetch(`${params.authUrl}/api/oauth/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-OC-Client': 'opencard-sdk',
+      'X-OC-Client-Id': params.clientId,
+    },
+    credentials: 'include', // Include cookies for session persistence
+    body: JSON.stringify(body),
+  });
 
   // Parse the response
   if (!response.ok) {
@@ -73,5 +72,7 @@ export async function exchangeCodeForTokens(params) {
     refresh_token: result.refresh_token,
     expires_in: result.expires_in,
     token_type: result.token_type,
+    ephemeral_key: result.ephemeral_key,
+    ephemeral_expires_in: result.ephemeral_expires_in,
   };
 }

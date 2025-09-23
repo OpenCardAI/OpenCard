@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { OpenCardProvider, AuthButton, useOpenCard } from '@opencard/sdk';
 
 function DemoContent() {
-  const { client, isAuthenticated, isAuthenticating, user } = useOpenCard();
+  const { client, isAuthenticated, isAuthenticating, user, opencardClient } = useOpenCard();
   const [modelResponse, setModelResponse] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -39,9 +39,24 @@ function DemoContent() {
       <div>
         <h2>Authentication</h2>
         <AuthButton />
-        
+
         <div>
-          <p><strong>Status:</strong> {isAuthenticating ? 'Signing in...' : isAuthenticated ? 'Authenticated' : 'Not signed in'}</p>
+          <p><strong>Status:</strong> {isAuthenticating ? 'Signing in...' : isAuthenticated ? '✅ Authenticated' : '❌ Not signed in'}</p>
+
+          {isAuthenticated && user && (
+            <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e8f5e8', border: '1px solid #4caf50', borderRadius: '4px' }}>
+              <strong>👋 Welcome back!</strong>
+              <p><strong>Email:</strong> {user.email || 'Not available'}</p>
+              <p><strong>User ID:</strong> {user.sub || 'Not available'}</p>
+            </div>
+          )}
+
+          {opencardClient && (
+            <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '4px', fontSize: '12px' }}>
+              <strong>Environment Info:</strong>
+              <pre>{JSON.stringify(opencardClient.getEnvironmentInfo(), null, 2)}</pre>
+            </div>
+          )}
         </div>
       </div>
 
@@ -84,8 +99,10 @@ function DemoContent() {
 
 function App() {
   const config = {
-    clientId: 'demo-client-id',
-    redirectUri: window.location.origin,
+    clientId: 'opencard', // Base app ID - SDK automatically resolves to client_dev or client_prod
+    authUrl: 'http://localhost:3000', // Local auth service (only needed for local dev)
+    // redirectUri defaults to window.location.origin for plug-and-play usage
+    // environment is auto-detected based on hostname/port
   };
 
   return (
