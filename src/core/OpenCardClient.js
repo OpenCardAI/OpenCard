@@ -361,25 +361,7 @@ export class OpenCardClient {
           if (sessionIdMatch) {
             console.log('ensureFresh: Session ID being sent:', sessionIdMatch[1]);
           } else {
-            console.log('ensureFresh: No session ID cookie found');
-
-            // Check if we have fresh access tokens (e.g., from recent OAuth callback)
-            // If we do, cookies might not be set yet, so allow the refresh attempt
-            const hasRecentTokens = this.session?.accessToken &&
-              this.session?.accessExpires &&
-              (Date.now() < this.session.accessExpires - 30000); // 30 seconds buffer
-
-            if (hasRecentTokens) {
-              console.log('ensureFresh: Have recent access tokens, proceeding despite missing cookies (likely post-callback)');
-            } else {
-              console.log('ensureFresh: No session cookies and no recent tokens - refresh will likely fail');
-
-              // If no session cookie exists and no fresh tokens, skip the network request
-              const error = new Error('No session cookie found - cannot refresh tokens');
-              error.isAuthError = true;
-              error.status = 401;
-              throw error;
-            }
+            console.log('ensureFresh: No session ID cookie found - proceeding with refresh attempt');
           }
         }
 
