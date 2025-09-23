@@ -339,6 +339,10 @@ export class OpenCardClient {
     console.log('ensureFresh: Making refresh request to:', `${this.config.authUrl}/api/oauth/token`);
     console.log('ensureFresh: Client ID:', this.config.clientId);
 
+    // Note: Removed proactive session validation as /api/auth/me endpoint
+    // doesn't exist or isn't CORS-configured. The httpOnly cookies work fine
+    // for the actual token refresh, so we'll rely on that mechanism.
+
     // Simple retry logic for network failures
     let lastError;
     for (let attempt = 1; attempt <= 2; attempt++) {
@@ -353,7 +357,7 @@ export class OpenCardClient {
             .filter(c => c.includes('session') || c.includes('opencard') || c.includes('auth'))
             .join('; ');
 
-          console.log('ensureFresh: All cookies:', allCookies);
+          console.log('ensureFresh: All cookies (JavaScript visible):', allCookies);
           console.log('ensureFresh: Session-related cookies:', sessionCookies || 'None found');
 
           // Extract specific session ID if present
@@ -361,7 +365,21 @@ export class OpenCardClient {
           if (sessionIdMatch) {
             console.log('ensureFresh: Session ID being sent:', sessionIdMatch[1]);
           } else {
-            console.log('ensureFresh: No session ID cookie found - proceeding with refresh attempt');
+            console.log('ensureFresh: No session ID cookie found in JavaScript-visible cookies');
+            console.log('⚠️  IMPORTANT: HttpOnly session cookies are invisible to JavaScript!');
+            console.log('📋 TO DEBUG: Open browser DevTools → Application/Storage → Cookies → http://localhost:3000');
+            console.log('   Look for session-related cookies (connect.sid, session, opencard_session, etc.)');
+            console.log('   Check if they exist and their expiration times');
+          }
+
+          // Log current session metadata for comparison
+          if (this.session) {
+            console.log('ensureFresh: Current session metadata:', {
+              hasAccessToken: !!this.session.accessToken,
+              accessExpires: this.session.accessExpires,
+              expiresInMinutes: this.session.accessExpires ? Math.round((this.session.accessExpires - Date.now()) / 60000) : null,
+              hasUser: !!this.session.user
+            });
           }
         }
 
@@ -382,6 +400,9 @@ export class OpenCardClient {
 
         console.log('ensureFresh: Response status:', response.status);
         console.log('ensureFresh: Response headers:', Object.fromEntries(response.headers.entries()));
+
+        // TRACK SESSION ROTATION: Check for new session cookies in response
+        this.trackSessionChanges(response);
 
         if (!response.ok) {
           let errorText = '';
@@ -478,6 +499,14 @@ export class OpenCardClient {
 
         console.log('ensureFresh: Successfully refreshed session');
 
+        // DEBUGGING: Check if server set new cookies during refresh
+        if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+          const refreshedCookies = document.cookie;
+          console.log('ensureFresh: Cookies after successful refresh:', refreshedCookies || 'None visible');
+          console.log('🔍 Check browser DevTools → Application → Cookies to see if httpOnly session cookies were updated');
+          console.log('   Expected: Session cookies should have extended expiration times');
+        }
+
         // Notify other tabs with the new session data
         if (this.channel) {
           // Send the session data so other tabs can sync immediately
@@ -497,14 +526,27 @@ export class OpenCardClient {
           error.isAuthError = false;
         }
 
-        // Only retry on network errors, not auth errors
-        if (attempt === 1 && (error.name === 'TypeError' || error.message.includes('Failed to fetch'))) {
-          console.log('ensureFresh: Network error, retrying in 500ms...');
-          await new Promise(resolve => setTimeout(resolve, 500));
-          continue;
+        // Enhanced retry logic for different failure scenarios
+        const isNetworkError = error.name === 'TypeError' || error.message.includes('Failed to fetch');
+
+        if (attempt === 1) {
+          if (isNetworkError) {
+            console.log('ensureFresh: Network error, retrying in 500ms...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            continue;
+          } else if (error.isAuthError) {
+            console.log('ensureFresh: Auth error on first attempt, checking for session rotation...');
+
+            // If we detected session rotation recently, try one more time
+            if (this.lastSessionRotation && (Date.now() - this.lastSessionRotation) < 60000) {
+              console.log('ensureFresh: Recent session rotation detected, retrying once...');
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay for cookie propagation
+              continue;
+            }
+          }
         }
 
-        // Don't retry for auth errors (401/403) or if this is the final attempt
+        // Don't retry for auth errors (unless session rotation case above) or if this is the final attempt
         break;
       }
     }
@@ -516,11 +558,10 @@ export class OpenCardClient {
     // For network errors or server errors, keep session metadata so user stays "authenticated"
     // and we can retry the refresh later
     if (lastError?.isAuthError) {
-      console.log('ensureFresh: Authentication error detected, clearing session');
-      this.clearSession();
+      console.log('ensureFresh: Authentication error detected, initiating session recovery');
 
-      // FALLBACK: Additional cleanup for cookie/session mismatches
-      this.handleCookieMismatch();
+      // Use graceful session recovery instead of abrupt clearing
+      await this.recoverSession();
     } else {
       console.log('ensureFresh: Network/server error, keeping session metadata for retry');
       // Don't clear session - let the user remain "authenticated" in the UI
@@ -810,6 +851,146 @@ export class OpenCardClient {
       sessionStorage.removeItem('opencard_state');
       sessionStorage.removeItem('opencard_return_url');
       console.log(`[OpenCard] ${this.instanceId}: Cleared PKCE parameters`);
+    }
+  }
+
+  // Graceful session recovery with fallback re-authentication
+  async recoverSession() {
+    console.log(`[OpenCard] ${this.instanceId}: Attempting session recovery`);
+
+    try {
+      // Clear any stale session data first
+      this.handleCookieMismatch();
+
+      // Clear session metadata but preserve user info if possible
+      const userInfo = this.session?.user;
+      this.clearSession();
+
+      // Restore user info for better UX (they'll see they're signed out but know who they were)
+      if (userInfo) {
+        this.session.user = userInfo;
+      }
+
+      console.log('recoverSession: Session cleared, user will need to re-authenticate');
+      console.log('💡 Recommendation: Show re-authentication prompt to user');
+
+      // Notify other tabs about session recovery
+      if (this.channel) {
+        this.channel.postMessage({
+          type: 'session-recovery-needed',
+          reason: 'Session validation failed',
+          timestamp: Date.now()
+        });
+      }
+
+      return false; // Indicates recovery requires user action
+    } catch (error) {
+      console.error('recoverSession: Error during session recovery:', error);
+      return false;
+    }
+  }
+
+  // Proactive session validation - DISABLED due to CORS issues with /api/auth/me
+  // The endpoint either doesn't exist or isn't CORS-configured for localhost:5173
+  // Since httpOnly cookies work fine for token refresh, we rely on that mechanism
+  /*
+  async validateSession() {
+    console.log(`[OpenCard] ${this.instanceId}: Validating session before refresh`);
+
+    try {
+      // Make a lightweight request to validate session
+      const response = await fetch(`${this.config.authUrl}/api/auth/me`, {
+        method: 'GET',
+        credentials: 'include', // Include session cookies
+        headers: {
+          'X-OC-Client': 'opencard-sdk',
+          'X-OC-Client-Id': this.config.clientId,
+        },
+      });
+
+      console.log('validateSession: Response status:', response.status);
+
+      if (response.ok) {
+        console.log('✅ validateSession: Session is valid');
+        return true;
+      } else if (response.status === 401 || response.status === 403) {
+        console.log('❌ validateSession: Session is invalid (401/403)');
+        return false;
+      } else {
+        console.log('⚠️  validateSession: Unexpected status, assuming valid for now:', response.status);
+        return true; // Assume valid for network errors
+      }
+    } catch (error) {
+      console.log('⚠️  validateSession: Error during validation, assuming valid:', error.message);
+      return true; // Assume valid for network errors
+    }
+  }
+  */
+
+  // Track session changes from Set-Cookie headers to handle session rotation
+  trackSessionChanges(response) {
+    console.log(`[OpenCard] ${this.instanceId}: Tracking session changes from response`);
+
+    if (!response || !response.headers) {
+      console.log('trackSessionChanges: No response headers available');
+      return;
+    }
+
+    // Extract Set-Cookie headers to detect session rotation
+    const setCookieHeaders = [];
+
+    // response.headers.get() returns first value, but we need all Set-Cookie headers
+    // Use for...of to get all headers
+    for (const [name, value] of response.headers) {
+      if (name.toLowerCase() === 'set-cookie') {
+        setCookieHeaders.push(value);
+      }
+    }
+
+    if (setCookieHeaders.length === 0) {
+      console.log('trackSessionChanges: No Set-Cookie headers found');
+      return;
+    }
+
+    console.log('trackSessionChanges: Found Set-Cookie headers:', setCookieHeaders);
+
+    // Parse session-related cookies
+    const sessionCookies = [];
+    for (const cookieHeader of setCookieHeaders) {
+      // Parse cookie name=value; attributes format
+      const cookieParts = cookieHeader.split(';');
+      const [nameValue] = cookieParts;
+      const [name, value] = nameValue.split('=').map(s => s.trim());
+
+      // Check if this is a session-related cookie
+      if (name && (
+        name.includes('session') ||
+        name.includes('connect.sid') ||
+        name.includes('opencard') ||
+        name.includes('auth')
+      )) {
+        sessionCookies.push({ name, value, header: cookieHeader });
+        console.log(`trackSessionChanges: Found session cookie update: ${name} = ${value?.substring(0, 20)}...`);
+      }
+    }
+
+    if (sessionCookies.length > 0) {
+      console.log('🔄 SESSION ROTATION DETECTED: Server updated session cookies during refresh');
+      console.log('   This may indicate server-side session rotation');
+      console.log('   Client should handle this gracefully by updating session references');
+
+      // Store session cookie information for debugging
+      this.lastSessionCookies = sessionCookies;
+      this.lastSessionRotation = Date.now();
+
+      // Notify about session rotation for cross-tab coordination
+      if (this.channel) {
+        this.channel.postMessage({
+          type: 'session-rotation-detected',
+          cookies: sessionCookies,
+          timestamp: this.lastSessionRotation
+        });
+      }
     }
   }
 
