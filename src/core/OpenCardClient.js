@@ -349,7 +349,7 @@ export class OpenCardClient {
       try {
         console.log(`ensureFresh: Attempt ${attempt}/2`);
 
-        // DEBUGGING: Log session cookies being sent and validate session
+        // DEBUGGING: Log session cookies being sent
         if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           const allCookies = document.cookie;
           const sessionCookies = allCookies.split(';')
@@ -357,29 +357,12 @@ export class OpenCardClient {
             .filter(c => c.includes('session') || c.includes('opencard') || c.includes('auth'))
             .join('; ');
 
-          console.log('ensureFresh: All cookies (JavaScript visible):', allCookies);
           console.log('ensureFresh: Session-related cookies:', sessionCookies || 'None found');
 
           // Extract specific session ID if present
           const sessionIdMatch = allCookies.match(/(?:^|;\s*)(?:session|opencard)[^=]*=([^;]+)/);
           if (sessionIdMatch) {
             console.log('ensureFresh: Session ID being sent:', sessionIdMatch[1]);
-          } else {
-            console.log('ensureFresh: No session ID cookie found in JavaScript-visible cookies');
-            console.log('⚠️  IMPORTANT: HttpOnly session cookies are invisible to JavaScript!');
-            console.log('📋 TO DEBUG: Open browser DevTools → Application/Storage → Cookies → http://localhost:3000');
-            console.log('   Look for session-related cookies (connect.sid, session, opencard_session, etc.)');
-            console.log('   Check if they exist and their expiration times');
-          }
-
-          // Log current session metadata for comparison
-          if (this.session) {
-            console.log('ensureFresh: Current session metadata:', {
-              hasAccessToken: !!this.session.accessToken,
-              accessExpires: this.session.accessExpires,
-              expiresInMinutes: this.session.accessExpires ? Math.round((this.session.accessExpires - Date.now()) / 60000) : null,
-              hasUser: !!this.session.user
-            });
           }
         }
 
@@ -503,8 +486,6 @@ export class OpenCardClient {
         if (typeof window !== 'undefined' && typeof document !== 'undefined') {
           const refreshedCookies = document.cookie;
           console.log('ensureFresh: Cookies after successful refresh:', refreshedCookies || 'None visible');
-          console.log('🔍 Check browser DevTools → Application → Cookies to see if httpOnly session cookies were updated');
-          console.log('   Expected: Session cookies should have extended expiration times');
         }
 
         // Notify other tabs with the new session data
