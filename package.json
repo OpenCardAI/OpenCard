@@ -4,16 +4,21 @@
   "description": "Universal AI wallet SDK with React components",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
+  "types": "src/OpenCard.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "src/OpenCard.d.ts"
   ],
+  "unpkg": "dist/browser.js",
+  "jsdelivr": "dist/browser.js",
   "scripts": {
-    "build": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.mjs --external:react --external:react-dom && esbuild src/index.js --bundle --format=cjs --outfile=dist/index.js --external:react --external:react-dom",
+    "build": "npm run build:main && npm run build:server && npm run build:browser",
+    "build:main": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.mjs --external:react --external:react-dom --external:openai && esbuild src/index.js --bundle --format=cjs --outfile=dist/index.js --external:react --external:react-dom --external:openai",
+    "build:server": "esbuild src/server.js --bundle --format=esm --outfile=dist/server.mjs --external:@ai-sdk/openai --external:next/headers && esbuild src/server.js --bundle --format=cjs --outfile=dist/server.js --external:@ai-sdk/openai --external:next/headers",
+    "build:browser": "esbuild src/index.js --bundle --format=iife --global-name=OpenCard --outfile=dist/browser.js --external:react --external:react-dom --external:@ai-sdk/openai --minify",
     "dev": "npm run build -- --watch",
-    "clean": "rm -rf dist",
-    "demo:vanilla": "cd demo/vanilla-js && (python3 -m http.server 8080 > /dev/null 2>&1 & echo $! > .server.pid) && sleep 1 && open http://localhost:8080 || (cd demo/vanilla-js && python -m SimpleHTTPServer 8080 > /dev/null 2>&1 & echo $! > .server.pid && sleep 1 && xdg-open http://localhost:8080)",
-    "demo:react": "cd demo/react && npm install && npm run dev",
-    "demo": "echo '📦 Available demos:\n  npm run demo:vanilla  - Vanilla JS demo\n  npm run demo:react    - React demo\n\nSee demo/README.md for more info'"
+    "demo": "serve -p 8080",
+    "clean": "rm -rf dist"
   },
   "repository": {
     "type": "git",
@@ -38,15 +43,25 @@
     "react": ">=16.8.0",
     "react-dom": ">=16.8.0"
   },
+  "peerDependenciesMeta": {
+    "@ai-sdk/openai": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "esbuild": "^0.20.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "serve": "^14.2.3"
   },
   "exports": {
     ".": {
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./server": {
+      "import": "./dist/server.mjs",
+      "require": "./dist/server.js"
     }
   }
 }
