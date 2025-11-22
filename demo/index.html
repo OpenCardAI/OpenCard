@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OpenCard SDK Test</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "openai": "https://esm.sh/openai@4.77.0"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>OpenCard SDK Test</h1>
+  <button id="test">Test SDK</button>
+  <button id="stream">Test Streaming</button>
+  <pre id="output">Click a button to test...</pre>
+
+  <script type="module">
+    import OpenCard from '../src/OpenCard.js';
+
+    const client = new OpenCard({
+      baseURL: 'http://localhost:3000/v1',
+    });
+
+    const output = document.getElementById('output');
+    const testButton = document.getElementById('test');
+    const streamButton = document.getElementById('stream');
+
+    // Reset UI when page is restored from bfcache (back button)
+    client.onPageRestore(() => {
+      testButton.disabled = false;
+      streamButton.disabled = false;
+      if (output.textContent === 'Loading...' || output.textContent === 'Streaming...\n\n' || output.textContent === 'Redirecting to login...') {
+        output.textContent = 'Click a button to test...';
+      }
+    });
+
+    // Auto-retry request when user returns from authentication
+    client.onAuthResume((savedRequest) => {
+      output.textContent = 'Authenticated! Retrying request...';
+
+      // Parse the saved request and retry
+      const requestBody = JSON.parse(savedRequest.body);
+      const isStreaming = requestBody.stream === true;
+
+      if (isStreaming) {
+        // Retry streaming request
+        client.chat.completions.create(requestBody)
+          .then(async (stream) => {
+            output.textContent = 'Streaming...\n\n';
+            for await (const chunk of stream) {
+              const content = chunk.choices[0]?.delta?.content || '';
+              output.textContent += content;
+            }
+            output.textContent += '\n\n✓ Streaming complete!';
+          })
+          .catch((error) => {
+            output.textContent = `Error: ${error.message}\n\n${error.stack}`;
+          })
+          .finally(() => {
+            streamButton.disabled = false;
+          });
+      } else {
+        // Retry non-streaming request
+        client.chat.completions.create(requestBody)
+          .then((response) => {
+            output.textContent = JSON.stringify(response, null, 2);
+          })
+          .catch((error) => {
+            output.textContent = `Error: ${error.message}\n\n${error.stack}`;
+          })
+          .finally(() => {
+            testButton.disabled = false;
+          });
+      }
+    });
+
+    // Non-streaming test
+    testButton.onclick = async () => {
+      try {
+        output.textContent = 'Loading...';
+        testButton.disabled = true;
+
+        const response = await client.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Say "SDK works!" in exactly 3 words' }],
+          max_tokens: 10,
+        });
+
+        output.textContent = JSON.stringify(response, null, 2);
+      } catch (error) {
+        output.textContent = `Error: ${error.message}\n\n${error.stack}`;
+      } finally {
+        testButton.disabled = false;
+      }
+    };
+
+    // Streaming test
+    streamButton.onclick = async () => {
+      try {
+        output.textContent = 'Streaming...\n\n';
+        streamButton.disabled = true;
+
+        const stream = await client.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Generate a short story about Ablus Dumbledore' }],
+          stream: true,
+        });
+
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || '';
+          output.textContent += content;
+        }
+
+        output.textContent += '\n\n✓ Streaming complete!';
+      } catch (error) {
+        output.textContent = `Error: ${error.message}\n\n${error.stack}`;
+      } finally {
+        streamButton.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

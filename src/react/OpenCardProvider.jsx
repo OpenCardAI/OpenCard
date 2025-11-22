@@ -23,12 +23,12 @@ const OpenCardContext = createContext(null);
  * ```
  */
 export function OpenCardProvider({ apiKey, baseURL, children, ...options }) {
-  // Stringify options for stable memoization (prevents re-creation on every render)
-  const optionsKey = JSON.stringify(options);
-
   const client = useMemo(
     () => new OpenCard({ apiKey, baseURL, ...options }),
-    [apiKey, baseURL, optionsKey]
+    [apiKey, baseURL]
+    // Note: Intentionally not including 'options' in deps to avoid recreating
+    // client on every render. Client recreation is only needed when apiKey or
+    // baseURL changes. Other options (timeout, maxRetries) rarely change.
   );
 
   return (

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OpenCard SDK - Drop-In Migration Example</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "openai": "https://esm.sh/openai@4.77.0"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>OpenCard SDK - Drop-In Migration Example</h1>
+  <p>This demo shows how you can use the <code>OpenAI</code> name from <code>@opencard/sdk</code> for seamless migration.</p>
+
+  <button id="test">Test with OpenAI alias</button>
+  <pre id="output">Click button to test...</pre>
+
+  <script type="module">
+    // Drop-in replacement: import OpenAI from OpenCard SDK
+    // In real apps: import OpenAI from '@opencard/sdk';
+    import OpenAI from '../src/index.js';
+
+    // Use exactly like OpenAI SDK - no code changes needed!
+    const client = new OpenAI({
+      apiKey: 'sk-opencard-test-dev-1234567890',
+      baseURL: 'http://localhost:3000/v1',
+      dangerouslyAllowBrowser: true,
+    });
+
+    document.getElementById('test').onclick = async () => {
+      try {
+        document.getElementById('output').textContent = 'Loading...';
+
+        // Same API as OpenAI SDK
+        const response = await client.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Say "Migration works!" in 3 words' }],
+          max_tokens: 10,
+        });
+
+        document.getElementById('output').textContent =
+          `Using: OpenAI (from @opencard/sdk)\n\n` +
+          `Response: ${response.choices[0].message.content}\n\n` +
+          `This is the exact same code you'd use with the OpenAI SDK!`;
+      } catch (error) {
+        document.getElementById('output').textContent = `Error: ${error.message}`;
+      }
+    };
+  </script>
+</body>
+</html>

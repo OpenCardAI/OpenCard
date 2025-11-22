@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OpenCard SDK - Auth Resume Demo</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "openai": "https://esm.sh/openai@4.77.0"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Auth Resume Demo</h1>
+  <p>This demo shows how the SDK saves your message through authentication redirects.</p>
+
+  <h2>Test Flow:</h2>
+  <ol>
+    <li>Type a message below</li>
+    <li>Click "Send" (will redirect to simulate auth)</li>
+    <li>Click "Simulate Auth Return" to come back</li>
+    <li>Your message will be restored automatically!</li>
+  </ol>
+
+  <input id="input" placeholder="Type a message..." style="width: 400px;" />
+  <button id="send">Send</button>
+  <button id="simulate">Simulate Auth Return</button>
+  <button id="clear">Clear Storage</button>
+
+  <h3>Output:</h3>
+  <pre id="output">Waiting for action...</pre>
+
+  <h3>Storage State:</h3>
+  <pre id="storage">sessionStorage empty</pre>
+
+  <script type="module">
+    import OpenCard from '../src/OpenCard.js';
+
+    const client = new OpenCard({
+      baseURL: 'http://localhost:3000/v1',
+    });
+
+    const output = document.getElementById('output');
+    const storageDisplay = document.getElementById('storage');
+    const input = document.getElementById('input');
+
+    // Update storage display
+    function updateStorageDisplay() {
+      const stored = sessionStorage.getItem('opencard_pending');
+      if (stored) {
+        storageDisplay.textContent = 'Stored:\n' + JSON.stringify(JSON.parse(stored), null, 2);
+      } else {
+        storageDisplay.textContent = 'sessionStorage empty';
+      }
+    }
+
+    // Register auth resume handler
+    client.onAuthResume((savedRequest) => {
+      output.textContent = '✅ Auth completed! Message restored:\n\n' +
+        JSON.stringify(savedRequest, null, 2);
+
+      // Auto-restore to input
+      const message = savedRequest.body.messages[0].content;
+      input.value = message;
+
+      output.textContent += '\n\n📝 Message restored to input field!';
+      updateStorageDisplay();
+    });
+
+    // Send button - simulates the request
+    document.getElementById('send').onclick = async () => {
+      const message = input.value.trim();
+
+      if (!message) {
+        output.textContent = '⚠️ Please type a message first';
+        return;
+      }
+
+      output.textContent = '💾 Saving message to sessionStorage...\n' +
+        'Message: "' + message + '"';
+
+      // Manually save to sessionStorage to simulate
+      const state = {
+        version: 1,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + (5 * 60 * 1000),
+        request: {
+          method: 'POST',
+          path: '/v1/chat/completions',
+          body: {
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: message }]
+          }
+        }
+      };
+
+      sessionStorage.setItem('opencard_pending', JSON.stringify(state));
+
+      output.textContent += '\n\n✅ Saved! Now simulating redirect...\n' +
+        'In production, you would be redirected to:\n' +
+        'wallet.opencard.ai/login?return_to=...';
+
+      updateStorageDisplay();
+    };
+
+    // Simulate auth return
+    document.getElementById('simulate').onclick = () => {
+      output.textContent = '🔄 Simulating return from auth...';
+
+      // Add auth success param to URL
+      const url = new URL(window.location.href);
+      url.searchParams.set('opencard_auth_success', '1');
+      window.location.href = url.toString();
+    };
+
+    // Clear storage
+    document.getElementById('clear').onclick = () => {
+      sessionStorage.removeItem('opencard_pending');
+      input.value = '';
+      output.textContent = '🗑️ Storage cleared';
+      updateStorageDisplay();
+
+      // Remove auth param from URL if present
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('opencard_auth_success')) {
+        url.searchParams.delete('opencard_auth_success');
+        window.history.replaceState({}, '', url.toString());
+      }
+    };
+
+    // Initial update
+    updateStorageDisplay();
+
+    // Check on load if we have auth success param
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('opencard_auth_success')) {
+      output.textContent = '🔍 Detected auth return param in URL\n' +
+        'SDK will automatically restore saved message...';
+    }
+  </script>
+</body>
+</html>
