@@ -15,7 +15,7 @@
     "build": "npm run build:main && npm run build:server && npm run build:browser",
     "build:main": "esbuild src/index.js --bundle --format=esm --outfile=dist/index.mjs --external:react --external:react-dom --external:openai && esbuild src/index.js --bundle --format=cjs --outfile=dist/index.js --external:react --external:react-dom --external:openai",
     "build:server": "esbuild src/server.js --bundle --format=esm --outfile=dist/server.mjs --external:@ai-sdk/openai --external:next/headers && esbuild src/server.js --bundle --format=cjs --outfile=dist/server.js --external:@ai-sdk/openai --external:next/headers",
-    "build:browser": "esbuild src/index.js --bundle --format=iife --global-name=OpenCard --outfile=dist/browser.js --external:react --external:react-dom --external:@ai-sdk/openai --minify",
+    "build:browser": "esbuild src/browser.js --bundle --format=iife --global-name=OpenCard --outfile=dist/browser.js --minify",
     "dev": "npm run build -- --watch",
     "demo": "serve -p 8080",
     "clean": "rm -rf dist"
